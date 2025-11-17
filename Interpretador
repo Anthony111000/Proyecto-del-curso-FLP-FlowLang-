@@ -7,7 +7,7 @@
 
 ;Repositorio: https://github.com/Anthony111000/Proyecto-del-curso-FLP-FlowLang-.git
 
-;******************************************************************************************
+
 ;----------------- Especificacion lexica y sintactica ----------------
 
 ;----------Gramatica BNF
@@ -22,12 +22,10 @@
 ; ;
 ; ;             := <complejo>
 ; ;                complejo-lit (real imag)
-; ;
-; ;		          := <texto> 
-; ;		             caracter-lit (txy)
 ; ; 
-; ;             := "\"" <texto> "\""
-; ;                texto-lit (txt)
+; ;             := "\"" cadena "\""
+; ;                cadena-lit (txt)
+; 
 ; ;             := <null-exp>
 ; ;                null-exp ()
 ; ;
@@ -41,37 +39,43 @@
 ; ;                var-exp (id)
 ; ;
 ; ;             := “var” “(“ (<identificador> “=” <expresion> “;”)+ “)” “{“ <expresion> “}”
-; ;	               variableVar-exp (ids exps body)
+; ;	               var-decl-exp (ids exps body)
 ; ;
 ; ;             := “set” <identificador> “=” <expresion>
 ; ;                set-exp (id exp)
 ; ;
 ; ;             := “const” “(“ (<identificador> “=” <expresion> “;”)+ “)” “{“ <expresion> “}”
-; ;	               variableConst-exp (ids exps body)
+; ;	                const-decl-exp (ids exps body)
 ; ;
 ; ;
 ; ;
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DEFINICIONS E INVOCACIONES ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; ;             := "func" (<identificador>*',') ":" <expresion> "done"
+; ;             := "procedimiento" (<identificador>*',') "haga" <expresion> "finProc"
 ; ;                func-exp (ids cuerpo)
 ; ;
-; ;             := "fun-rec" (<identificador> “(“ (<identificador> “,”)+ “)” “=” <expresion> “en” <expresion>
+; ;             := "func-rec" (<identificador> “(“ (<identificador> “,”)+ “)” “=” <expresion> “en” <expresion>
 ; ;                rec-exp (ids exps cuerpo)
 ; ;
 ; ;             := "evaluar" expresion (expresion ",")* "finEval"
 ; ;                app-exp (exp exps)  
-; ; 
+; ;
+; ;
+; ;
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS PREDEFINIDOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; ;		          := “list” ( <expresion>* “,”)
 ; ;                list-exp (exps)
 ; ;
 ; ;
-; ;		          := “diccionario” ( (<identificador> : <expresion>)* “,” )
-; ;                 diccionario-exp (exps)
+; ;		          := “dict” ( (<identificador> : <expresion>)* “,” )
+; ;                 dict-exp (exps)
+; ;
+; ;             := "prototipo" <identificador> "=" <expresion>
+; ;                prototype-exp (id exp)
 ; ;
 ; ;
 ; ;
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ESTRUCTURAS DE CONTROL ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; ;             := "if" <expresion> "<" <expresion> ">" "else" <expresion> "done"
+; ;             := "Si" <expresion> "entonces" <expresion> "sino" <expresion> "finSI"
 ; ;                condicional-exp (test-exp true-exp false-exp)
 ; ; 
 ; ;             := “begin” <expresion>+ “,” “end”
@@ -111,7 +115,7 @@
 ; ;	                                    := cabeza primitiva-cabeza
 ; ;	                                    := cola primitiva-cola
 ; ;	                                    := print primitiva-print
-; ;	                                    := diccionario? primitiva-is-diccionario
+; ;	                                    := dict? primitiva-is-dict
 ; ;
 ; ; 	          := <primitiva-binaria> (<expresion> , <expresion>) primapp-bin-exp (prim exp1 exp2)
 ; ;	               <primitiva-binaria> := + primitiva-suma
@@ -123,339 +127,626 @@
 ; ;	                                     := append primitiva-append
 ; ;	                                     := agregar-a-lista primitiva-agregar-a-lista
 ; ;
-; ;             := <primitiva-diccionario-unaria> ( <expresion> ) primapp-un-diccionario-exp (prim exp)
-; ;                <primitiva-diccionario-unaria> := claves-diccionario (primitiva-claves-diccionario)
-; ;				                                          := valores-diccionario (primitiva-valores-diccionario)
+; ;             := <primitiva-dict-unaria> ( <expresion> ) primapp-un-dict-exp (prim exp)
+; ;                <primitiva-dict-unaria> := claves-dict (primitiva-claves-dict)
+; ;				                                          := valores-dict (primitiva-valores-dict)
 ; ;
-; ;		          := <primitiva-diccionario-bin> ( <expresion> , <identificador> ) primaapp-bin-diccionario-exp (prim exp id)
-; ;                <primitiva-diccionario-bin> := ref-diccionario (primitiva-bin-diccionario)
+; ;		          := <primitiva-dict-bin> ( <expresion> , <identificador> ) primaapp-bin-dict-exp (prim exp id)
+; ;                <primitiva-dict-bin> := ref-dict (primitiva-bin-dict)
 ; ;
-; ;		          := <primitiva-diccionario-ter> ( <expresion> , <identificador> , <expresion>) primaapp-ter-diccionario-exp (prim exp1 id exp2)
-; ;                <primitiva-diccionario-ter> := crear-diccionario (primitiva-crear-diccionario)
-; ; 				                                     := set-diccionario (primitiva-set-diccionario)
+; ;		          := <primitiva-dict-ter> ( <expresion> , <identificador> , <expresion>) primaapp-ter-dict-exp (prim exp1 id exp2)
+; ;                <primitiva-dict-ter> := crear-dict (primitiva-crear-dict)
+; ; 				                                     := set-dict (primitiva-set-dict)
 ; ;
 ; ;
 ; ;
 ;---------- Especificacion lexica ------------------------------------------------------------------
-
-(define scanner-spec-simple-interpreter
+(define scanner-spec-flowlang
 '((white-sp
    (whitespace) skip)
   (comment
-   ("%" (arbno (not #\newline))) skip)
-  (identifier
-   (letter (arbno (or letter digit "?"))) symbol)
-  (number
+   ("//" (arbno (not #\newline))) skip)
+  (identificador
+   ("@" letter (arbno (or letter digit "?"))) symbol)
+  (numero
    (digit (arbno digit)) number)
-  (number
-   ("-" digit (arbno digit)) number)))
+  (numero
+   ("-" digit (arbno digit)) number)
+  (numero
+   (digit (arbno digit) "." digit (arbno digit)) number)
+  (numero
+   ("-" digit (arbno digit) "." digit (arbno digit)) number)
+  (texto
+   (letter (arbno (or letter digit "-" ":"))) string)
+))
 
-;Especificación Sintáctica (gramática)
 
-(define grammar-simple-interpreter
-  '((program (expression) a-program)
-    (expression (number) lit-exp)
-    (expression (identifier) var-exp)
-    (expression
-     (primitive "(" (separated-list expression ",")")")
-     primapp-exp)
-    (expression ("if" expression "then" expression "else" expression)
-                if-exp)
-    (expression ("let" (arbno identifier "=" expression) "in" expression)
-                let-exp)
-    (expression ("proc" "(" (arbno identifier) ")" expression)
-                proc-exp)
-    (expression ( "(" expression (arbno expression) ")")
-                app-exp)
-    (expression ("letrec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
-                letrec-exp)
+
+;----------Especificacion sintactica
+(define grammar-flowlang
+  '((programa (expresion) un-programa)
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (expresion (numero) numero-lit)
     
-    ; características adicionales
-    (expression ("begin" expression (arbno ";" expression) "end")
+    (expresion ("\"" texto "\"") cadena-lit)
+
+
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DEFINICIONS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;; INDENTIFICADORES ;;;;;;;;;;;;;;;;
+    (expresion (identificador) var-exp)
+
+    ;;;;;;;;;;;;;;;; VAR ;;;;;;;;;;;;;;;;
+    (expresion ("var" "(" (separated-list identificador "=" expresion ";") ")" "{" expresion "}")
+               var-decl-exp)
+
+    ;;;;;;;;;;;;;;;; SET ;;;;;;;;;;;;;;;;
+    (expresion ("set" identificador "=" expresion)
+               set-exp)
+    
+    ;;;;;;;;;;;;;;;; CONST ;;;;;;;;;;;;;;;;
+    (expresion ("const" "(" (separated-list identificador "=" expresion ";") ")" "{" expresion "}")
+                const-decl-exp)
+
+
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; FUNCIONES E INVOCACIONES ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;; Funciones ;;;;;;;;;;;;;;;;
+    (expresion ("func" "("(separated-list identificador ",")")" "{" expresion "}")
+               func-exp(ids cuerpo))
+
+    ;;;;;;;;;;;;;;;; Recursivas ;;;;;;;;;;;;;;;;
+    (expresion ("func-rec" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion)  "{" expresion "}") 
+                rec-exp)
+
+    ;;;;;;;;;;;;;;;; Invocar ;;;;;;;;;;;;;;;;
+    (expresion ("evaluar" expresion "("(separated-list expresion ",")")" "finEval")
+               app-exp(exp exps))
+
+
+
+    
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS PREDEFINIDOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;; Listas ;;;;;;;;;;;;;;;;
+    (expresion ("list" "("(separated-list expresion ",") ")")
+               list-exp(exps))
+
+    ;;;;;;;;;;;;;;;; Diccionarios ;;;;;;;;;;;;;;;;
+    (expresion ("dict" "("(separated-list identificador ":" expresion ",") ")")
+               dict-exp(exps))
+
+
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ESTRUCTURAS DE CONTROL ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;; IF ;;;;;;;;;;;;;;;;
+    (expresion ("if" expresion "then" expresion "else" expresion "done")
+               condicional-exp)
+
+    ;;;;;;;;;;;;;;;; While ;;;;;;;;;;;;;;;;
+    (expresion ("while" expresion "do" expresion "done")
+               while-exp)
+    
+    ;;;;;;;;;;;;;;;; For ;;;;;;;;;;;;;;;;
+    (expresion ("for" identificador "=" expresion "to" expresion "do" expresion "done")
+               for-exp)
+
+    ;;;;;;;;;;;;;;;; Begin ;;;;;;;;;;;;;;;;
+    (expresion ("begin" expresion (arbno ";" expresion) "end")
                 begin-exp)
-    (expression ("set" identifier "=" expression)
-                set-exp)
-    ;;;;;;
-
-    (primitive ("+") add-prim)
-    (primitive ("-") substract-prim)
-    (primitive ("*") mult-prim)
-    (primitive ("add1") incr-prim)
-    (primitive ("sub1") decr-prim)))
 
 
-;Tipos de datos para la sintaxis abstracta de la gramática
 
-;Construidos manualmente:
 
-;(define-datatype program program?
-;  (a-program
-;   (exp expression?)))
-;
-;(define-datatype expression expression?
-;  (lit-exp
-;   (datum number?))
-;  (var-exp
-;   (id symbol?))
-;  (primapp-exp
-;   (prim primitive?)
-;   (rands (list-of expression?)))
-;  (if-exp
-;   (test-exp expression?)
-;   (true-exp expression?)
-;   (false-exp expression?))
-;  (let-exp
-;   (ids (list-of symbol?))
-;   (rans (list-of expression?))
-;   (body expression?))
-;  (proc-exp
-;   (ids (list-of symbol?))
-;   (body expression?))
-;  (app-exp
-;   (proc expression?)
-;   (args (list-of expression?)))
-;  (letrec-exp
-;   (proc-names (list-of symbol?))
-;   (idss (list-of (list-of symbol?)))
-;   (bodies (list-of expression?))
-;   (body-letrec expression?))
-;  (begin-exp
-;   (exp expression?)
-;   (exps (list-of expression?)))
-;  (set-exp
-;   (id symbol?)
-;   (rhs expression?)))
-;
-;(define-datatype primitive primitive?
-;  (add-prim)
-;  (substract-prim)
-;  (mult-prim)
-;  (incr-prim)
-;  (decr-prim))
 
-;Construidos automáticamente:
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; BOOLENANOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;; False ;;;;;;;;;;;;;;;;
+    (expresion ("false")
+               false-exp)
+    
+    ;;;;;;;;;;;;;;;; True ;;;;;;;;;;;;;;;;
+    (expresion ("true")
+               true-exp)
 
-(sllgen:make-define-datatypes scanner-spec-simple-interpreter grammar-simple-interpreter)
+    ;;;;;;;;;;;;;;;; Not ;;;;;;;;;;;;;;;;
+    (expresion ("not" expresion)
+              oper-un-bool)
+    
+    ;;;;;;;;;;;;;;;; Primitivas Booleanas ;;;;;;;;;;;;;;;;
+    (expresion ("[" expresion pred-prim expresion "]" )
+               pred-prim-exp)
+              (pred-prim (">")   pred-bigger)
+              (pred-prim ("<")   pred-minor)
+              (pred-prim (">=")  pred-bigger-equal)
+              (pred-prim ("<=")  pred-minor-equal)
+              (pred-prim ("==")  pred-equal)
+              (pred-prim ("!=")  pred-not-equal)
+              (pred-prim ("and") pred-and)
+              (pred-prim ("or")  pred-or)
 
+
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; PRIMITIVAS GENERALES ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SIN ARGUMENTO ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (expresion (primitiva-sin-arg)
+               primapp-sin-arg-exp)
+              (primitiva-sin-arg ("vacio") primitiva-vacio)
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; UNARIAS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (expresion (primitiva-unaria "(" expresion ")" )
+               primapp-un-exp)
+              (primitiva-unaria ("longitud") primitiva-longitud)
+              (primitiva-unaria ("add1") primitiva-add1)
+              (primitiva-unaria ("sub1") primitiva-sub1)
+              (primitiva-unaria ("vacio?") primitiva-es-vacio)
+              (primitiva-unaria ("lista?") primitiva-es-lista)
+              (primitiva-unaria ("cabeza") primitiva-cabeza)
+              (primitiva-unaria ("cola") primitiva-cola)
+              (primitiva-unaria ("print") primitiva-print)
+              (primitiva-unaria ("dict?") primitiva-is-dict)
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;BINARIAS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (expresion (primitiva-binaria "(" expresion "," expresion ")" )
+               primapp-bin-exp)
+              (primitiva-binaria ("+") primitiva-suma)
+              (primitiva-binaria ("~") primitiva-resta)
+              (primitiva-binaria ("/") primitiva-div)
+              (primitiva-binaria ("*") primitiva-multi)
+              (primitiva-binaria ("mod") primitiva-mod)
+              (primitiva-binaria ("concat") primitiva-concat)
+              (primitiva-binaria ("append") primitiva-append)
+              (primitiva-binaria ("agregar-a-lista") primitiva-agregar-a-lista)
+
+
+
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; PRIMITIVAS DICCIONARIOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;; Expresion primitivas unarias ;;;;;;;;;;;;;;;;
+    (expresion (primitiva-dict-unaria "(" expresion ")" )
+               primapp-un-dict-exp)
+              (primitiva-dict-unaria ("claves-dict") primitiva-claves-dict)
+              (primitiva-dict-unaria ("valores-dict") primitiva-valores-dict)
+
+
+    ;;;;;;;;;;;;;;;; Expresion primitivas binarias ;;;;;;;;;;;;;;;;
+    (expresion (primitiva-dict-bin "("  expresion ","identificador ")" )
+               primaapp-bin-dict-exp)
+              (primitiva-dict-bin ("ref-dict") primitiva-bin-dict)
+
+
+    ;;;;;;;;;;;;;;;; Expresion primitivas ternarias ;;;;;;;;;;;;;;;;
+    (expresion (primitiva-dict-ter "(" expresion "," identificador "," expresion ")" )
+               primaapp-ter-dict-exp)
+              (primitiva-dict-ter ("crear-dict") primitiva-crear-dict)
+              (primitiva-dict-ter ("set-dict") primitiva-set-dict)
+))
+
+
+
+;----------------------- Implementacion ----------------------
+;----------Tipos de datos
+(sllgen:make-define-datatypes scanner-spec-flowlang grammar-flowlang)
 (define show-the-datatypes
-  (lambda () (sllgen:list-define-datatypes scanner-spec-simple-interpreter grammar-simple-interpreter)))
+  (lambda ()
+    (sllgen:list-define-datatypes scanner-spec-flowlang grammar-flowlang)))
 
-;*******************************************************************************************
-;Parser, Scanner, Interfaz
-
-;El FrontEnd (Análisis léxico (scanner) y sintáctico (parser) integrados)
-
+;----------Funciones scan&parse, just-scan e interpretador
+;FrontEnd (Análisis léxico (scanner) y sintáctico (parser) integrados)
 (define scan&parse
-  (sllgen:make-string-parser scanner-spec-simple-interpreter grammar-simple-interpreter))
+  (sllgen:make-string-parser scanner-spec-flowlang grammar-flowlang))
 
-;El Analizador Léxico (Scanner)
 
+;Analizador Léxico (Scanner)
 (define just-scan
-  (sllgen:make-string-scanner scanner-spec-simple-interpreter grammar-simple-interpreter))
+  (sllgen:make-string-scanner scanner-spec-flowlang grammar-flowlang))
 
-;El Interpretador (FrontEnd + Evaluación + señal para lectura )
 
+;Interpretador (FrontEnd + Evaluación + señal para lectura)
 (define interpretador
   (sllgen:make-rep-loop  "--> "
-    (lambda (pgm) (eval-program  pgm)) 
+    (lambda (pgm) (evaluar-programa  pgm)) 
     (sllgen:make-stream-parser 
-      scanner-spec-simple-interpreter
-      grammar-simple-interpreter)))
+      scanner-spec-flowlang
+      grammar-flowlang)))
 
-;*******************************************************************************************
-;El Interprete
 
-;eval-program: <programa> -> numero
-; función que evalúa un programa teniendo en cuenta un ambiente dado (se inicializa dentro del programa)
-
-(define eval-program
+;-----------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------------------;-----------------------------------------------------------------------------------------------------
+;----------Evaluar programa y expresiones
+;evaluar-programa : <programa> -> numero
+;Función que evalúa un programa teniendo en cuenta un ambiente dado (se inicializa dentro del programa)
+(define evaluar-programa
   (lambda (pgm)
-    (cases program pgm
-      (a-program (body)
-                 (eval-expression body (init-env))))))
+    (cases programa pgm
+      (un-programa (expresion)
+                   (evaluar-expresion expresion (ambiente-inicial))))))
 
-; Ambiente inicial
-;(define init-env
-;  (lambda ()
-;    (extend-env
-;     '(x y z)
-;     '(4 2 5)
-;     (empty-env))))
 
-(define init-env
-  (lambda ()
-    (extend-env
-     '(x y z)
-     (list (direct-target 1)
-           (direct-target 5)
-           (direct-target 10))
-     (empty-env))))
 
-;(define init-env
-;  (lambda ()
-;    (extend-env
-;     '(x y z f)
-;     (list 4 2 5 (closure '(y) (primapp-exp (mult-prim) (cons (var-exp 'y) (cons (primapp-exp (decr-prim) (cons (var-exp 'y) ())) ())))
-;                      (empty-env)))
-;     (empty-env))))
+;evaluar-expresion: <expresion> <ambiente> -> numero
+;Evalua la expresión en el ambiente de entrada
+(define evaluar-expresion
+  (lambda (exp amb)
+    (cases expresion exp
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      (numero-lit (numero) numero)
 
-;eval-expression: <expression> <enviroment> -> numero
-; evalua la expresión en el ambiente de entrada
+      (cadena-lit (cadena) cadena)
 
-;**************************************************************************************
-;Definición tipos de datos referencia y blanco
 
-(define-datatype target target?
-  (direct-target (expval expval?))
-  (indirect-target (ref ref-to-direct-target?)))
 
-(define-datatype reference reference?
-  (a-ref (position integer?)
-         (vec vector?)))
 
-;**************************************************************************************
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DEFINICIONS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+      ;;;;;;;;;; Identificadores ;;;;;;;;;; 
+      (var-exp (id) (buscar-variable id amb))
 
-(define eval-expression
-  (lambda (exp env)
-    (cases expression exp
-      (lit-exp (datum) datum)
-      (var-exp (id) (apply-env env id))
-      (primapp-exp (prim rands)
-                   (let ((args (eval-primapp-exp-rands rands env)))
-                     (apply-primitive prim args)))
-      (if-exp (test-exp true-exp false-exp)
-              (if (true-value? (eval-expression test-exp env))
-                  (eval-expression true-exp env)
-                  (eval-expression false-exp env)))
-      (let-exp (ids rands body)
-               (let ((args (eval-let-exp-rands rands env)))
-                 (eval-expression body (extend-env ids args env))))
-      (proc-exp (ids body)
-                (closure ids body env))
-      (app-exp (rator rands)
-               (let ((proc (eval-expression rator env))
-                     (args (eval-rands rands env)))
-                 (if (procval? proc)
-                     (apply-procedure proc args)
-                     (eopl:error 'eval-expression
-                                 "Attempt to apply non-procedure ~s" proc))))
-      (letrec-exp (proc-names idss bodies letrec-body)
-                  (eval-expression letrec-body
-                                   (extend-env-recursively proc-names idss bodies env)))
+      ;;;;;;;;;; Var ;;;;;;;;;;
+      (var-decl-exp(ids exps cuerpo)
+                        (let ((args (evaluar-operandos exps amb)))
+                          (evaluar-expresion cuerpo (ambiente-extendido ids args amb))
+                        ))
+
+      ;;;;;;;;;; Set ;;;;;;;;;;
       (set-exp (id rhs-exp)
                (begin
-                 (setref!
-                  (apply-env-ref env id)
-                  (eval-expression rhs-exp env))
+                 (cond
+                   [(buscar-variable-const id variables-constantes)
+                    (eopl:error 'evaluar-expresion
+                                 "No es posible modificar una variable constante" )]
+                   [else (setref!
+                          (buscar-variable-ref id amb)
+                          (evaluar-expresion rhs-exp amb))
+                   ])
                  1))
-      (begin-exp (exp exps)
-                 (let loop ((acc (eval-expression exp env))
-                             (exps exps))
+
+      ;;;;;;;;;; Const ;;;;;;;;;;
+      (const-decl-exp(ids exps cuerpo)
+                        (begin
+                          (set! variables-constantes (append variables-constantes ids))
+                          (let ((args (evaluar-operandos exps amb)))
+                          (evaluar-expresion cuerpo (ambiente-extendido ids args amb)))
+                        ))
+
+
+
+
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  FUNCIONES E INVOCACIONES  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+      ;;;;;;;;;; funciones ;;;;;;;;;; 
+      (func-exp (ids cuerpo)
+                         (cerradura ids cuerpo amb))
+
+      ;;;;;;;;;; recursivas ;;;;;;;;;;
+      (rec-exp (nombre-proc idss cuerpo letrec-cuerpo)
+                  (evaluar-expresion letrec-cuerpo
+                                   (ambiente-extendido-recursivo nombre-proc idss cuerpo amb)
+                  ))
+
+      ;;;;;;;;;; invocar ;;;;;;;;;;
+      (app-exp (exp exps)
+               (let ((proc (evaluar-expresion exp amb))
+                    (args (evaluar-operandos exps amb)))
+                 (if (procVal? proc)
+                     (aplicar-procedimiento proc args)
+                     (eopl:error 'evaluar-expresion
+                                  "Attempt to apply non-procedure ~s" proc))
+               ))
+
+
+
+
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS PREDEFINIDOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+      ;;;;;;;;;; listas ;;;;;;;;;;
+      (list-exp (exps)
+                    (evaluar-operandos exps amb))
+
+      ;;;;;;;;;; Diccionario ;;;;;;;;;;
+      (dict-exp (ids exps)
+                    (let(( rand (evaluar-operandos exps amb)))
+                        (list (list->vector ids) (list->vector rand))
+                    ))
+
+
+
+
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ESTRUCTURAS DE CONTROL ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+      ;;;;;;;;;; IF ;;;;;;;;;;
+      (condicional-exp (test-exp true-exp false-exp)
+                       (if (evaluar-expresion test-exp amb)
+                           (evaluar-expresion true-exp amb)
+                           (evaluar-expresion false-exp amb)
+                       ))
+
+      ;;;;;;;;;; WHILE ;;;;;;;;;;
+      (while-exp (bool-exp exp)
+                  (let loop ((i 0))
+                   (when (evaluar-expresion bool-exp amb)
+                         (evaluar-expresion exp amb)
+                         (loop (+ 1 i)))
+                  ))
+
+      ;;;;;;;;;; FOR ;;;;;;;;;;
+      (for-exp (id inicio final exp)
+              (let ((ini (evaluar-expresion inicio amb))
+                    (fin (evaluar-expresion final amb)))
+                   (let loop ((i ini))
+                     (when (<= i fin)
+                           (evaluar-expresion exp (ambiente-extendido (list id) (list i) amb))
+                           (loop (+ 1 i))
+                     ))))
+
+      ;;;;;;;;;; BEGIN ;;;;;;;;;;
+      (begin-exp (exp exps) 
+                 (let loop 
+                    ((acc (evaluar-expresion exp amb))
+                     (exps exps))
                     (if (null? exps) 
                         acc
-                        (loop (eval-expression (car exps) 
-                                               env)
-                              (cdr exps))))))))
+                        (loop (evaluar-expresion (car exps) amb) (cdr exps)))
+                 ))
 
-; funciones auxiliares para aplicar eval-expression a cada elemento de una 
-; lista de operandos (expresiones)
-(define eval-rands
+
+
+
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; BOOLANEAS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      ;;;;;;;;;; false ;;;;;;;;;;
+      (false-exp () #f)
+
+      ;;;;;;;;;; true ;;;;;;;;;;
+      (true-exp () #t)
+      
+      ;;;;;;;;;; Unarias ;;;;;;;;;;
+      (oper-un-bool (pred) (not (evaluar-expresion pred amb)))
+
+      ;;;;;;;;;; primitivas booleanas ;;;;;;;;;;
+      (pred-prim-exp (op1 pred-prim op2)
+                (let ((args (evaluar-operandos (list op1 op2) amb)))
+                    (aplicar-pred-prim pred-prim args)
+                ))
+
+
+
+
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; PRIMITIVAS GENERALES ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      ;;;;;;;;;; sin argumentos ;;;;;;;;;;
+      (primapp-sin-arg-exp (primitiva-sin-arg)
+                           '())
+
+      ;;;;;;;;;; unarias ;;;;;;;;;;
+      (primapp-un-exp (primitiva-unaria op1)
+                      (let ((arg (evaluar-operando op1 amb)))
+                           (aplicar-primitiva-unaria primitiva-unaria arg)
+                      ))
+
+      ;;;;;;;;;; binarias ;;;;;;;;;;
+      (primapp-bin-exp (primitiva-binaria op1 op2)
+                       (let ((args (evaluar-operandos (list op1 op2) amb)))
+                            (aplicar-primitiva-binaria primitiva-binaria args)
+                        ))
+
+
+
+
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; PRIMITIVAS DICCIONARIOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      ;;;;;;; unarias ;;;;;;;
+      (primapp-un-dict-exp (prim-un-dict exp)
+                               (let((arg (evaluar-operando exp amb)))
+                                   (aplicar-primitiva-unaria-dict prim-un-dict arg)
+                               ))
+
+      ;;;;;; binarias ;;;;;;
+      (primaapp-bin-dict-exp (prim-bin-dict dict id)
+                               (let((arg1 (evaluar-operando  dict amb)))
+                                   (vector-ref (cadr arg1) (list-find-position id (vector->list (car arg1))))
+                               ))
+
+      ;;;;;; ternarias ;;;;;;
+      (primaapp-ter-dict-exp (prim-ter-dict dict idc expc)
+                               (let((arg1 (evaluar-operando dict amb))
+                                    (arg2 (evaluar-operando expc amb)))
+                                    (aplicar-primitiva-ternaria-dict prim-ter-dict (list arg1 idc arg2))
+                               ))
+)))
+
+
+
+;Funciones auxiliares para aplicar evaluar-expresion a cada elemento de una lista de operandos (expresiones)
+(define evaluar-operandos
   (lambda (rands env)
-    (map (lambda (x) (eval-rand x env)) rands)))
+    (map (lambda (x) (evaluar-operando x env)) rands)))
 
-(define eval-rand
+
+(define evaluar-operando
   (lambda (rand env)
-    (cases expression rand
-      (var-exp (id)
-               (indirect-target
-                (let ((ref (apply-env-ref env id)))
-                  (cases target (primitive-deref ref)
-                    (direct-target (expval) ref)
-                    (indirect-target (ref1) ref1)))))
-      (else
-       (direct-target (eval-expression rand env))))))
+    (evaluar-expresion rand env)))
 
-(define eval-primapp-exp-rands
-  (lambda (rands env)
-    (map (lambda (x) (eval-expression x env)) rands)))
 
-(define eval-let-exp-rands
-  (lambda (rands env)
-    (map (lambda (x) (eval-let-exp-rand x env))
-         rands)))
 
-(define eval-let-exp-rand
-  (lambda (rand env)
-    (direct-target (eval-expression rand env))))
 
-;apply-primitive: <primitiva> <list-of-expression> -> numero
-(define apply-primitive
+
+;aplicar-primitiva-unaria: <primitiva-unaria> <list-of-expresion> -> numero
+;Obtiene el resultado de aplicar la primitiva unaria al operando
+(define aplicar-primitiva-unaria
+  (lambda (prim arg)
+    (cases primitiva-unaria prim
+      (primitiva-longitud  () (string-length arg))
+      (primitiva-add1      () (+ arg 1))
+      (primitiva-sub1      () (- arg 1))
+      (primitiva-es-vacio  () (null? arg))
+      (primitiva-es-lista  () (list? arg))
+      (primitiva-cabeza    () (car arg))
+      (primitiva-cola      () (cdr arg))
+      (primitiva-print     () (begin (display arg) (newline)))
+      (primitiva-is-dict    ()  (dict?  arg))
+    )))
+
+
+
+
+
+;aplicar-primitiva-binaria: <primitiva-binaria> <list-of-expresion> -> numero
+;Obtiene el resultado de aplicar la primitiva binaria a los operandos
+(define aplicar-primitiva-binaria
   (lambda (prim args)
-    (cases primitive prim
-      (add-prim () (+ (car args) (cadr args)))
-      (substract-prim () (- (car args) (cadr args)))
-      (mult-prim () (* (car args) (cadr args)))
-      (incr-prim () (+ (car args) 1))
-      (decr-prim () (- (car args) 1)))))
+    (cases primitiva-binaria prim
+      (primitiva-suma   () (+ (car args) (cadr args)))
+      (primitiva-resta  () (- (car args) (cadr args)))
+      (primitiva-div    () (/ (car args) (cadr args)))
+      (primitiva-multi  () (* (car args) (cadr args)))
+      (primitiva-mod    () (modulo (car args) (cadr args)))
+      (primitiva-concat () (string-append (car args) (cadr args)))
+      (primitiva-append () (append (car args) (cadr args)))
+      (primitiva-agregar-a-lista () (append (car args) (list(cadr args))))
+)))
 
-;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
-(define true-value?
-  (lambda (x)
-    (not (zero? x))))
 
-;*******************************************************************************************
-;Procedimientos
-(define-datatype procval procval?
-  (closure
-   (ids (list-of symbol?))
-   (body expression?)
-   (env environment?)))
 
-;apply-procedure: evalua el cuerpo de un procedimientos en el ambiente extendido correspondiente
-(define apply-procedure
-  (lambda (proc args)
-    (cases procval proc
-      (closure (ids body env)
-               (eval-expression body (extend-env ids args env))))))
 
-;*******************************************************************************************
-;Ambientes
 
-;definición del tipo de dato ambiente
-(define-datatype environment environment?
-  (empty-env-record)
-  (extended-env-record
+;aplicar-primitiva-unaria-dict: <primitiva-unaria-dict> <list-of-expresion> -> vector
+(define aplicar-primitiva-unaria-dict
+  (lambda (prim args)
+    (cases primitiva-dict-unaria prim
+      (primitiva-claves-dict   () (1))
+      (primitiva-valores-dict  () (2))
+)))
+
+
+
+
+
+;aplicar-primitiva-ternaria-dict: <primitiva-dict-ter> <list-of-expresion> -> vector
+;Obtiene el resultado de aplicar la primitiva ternaria de diccionario a los operandos
+(define aplicar-primitiva-ternaria-dict
+  (lambda (prim args)
+    (cases primitiva-dict-ter prim
+      (primitiva-crear-dict () (define v1 (list->vector (append  (vector->list (caar args)) (list (cadr args))))) (define v2 (list->vector (append  (vector->list (cadar args)) (list (caddr args)))))(list v1 v2))
+      (primitiva-set-dict ()(vector-set! (cadar args)(list-find-position (cadr args) (vector->list (caar args)))(caddr args)))
+      )))
+
+
+
+
+
+;aplicar predicado booleano
+(define aplicar-pred-prim
+  (lambda (prim args)
+    (cases pred-prim prim
+      (pred-bigger       () (> (car args) (cadr args)))
+      (pred-minor        () (< (car args) (cadr args)))
+      (pred-bigger-equal () (>= (car args) (cadr args)))
+      (pred-minor-equal  () (<= (car args) (cadr args)))
+      (pred-equal        () (equal? (car args) (cadr args)))
+      (pred-not-equal    () (not (equal? (car args) (cadr args))))
+      (pred-and          () (and (car args) (cadr args)))
+      (pred-or           () (or (car args) (cadr args)))
+      )))
+
+
+
+
+;-----------------------------------------------------------------------------------------------------;-----------------------------------------------------------------------------------------------------;-----------------------------------------------------------------------------------------------------
+;----------Definiendo ambientes y un ambiente inicial
+;Ambiente inicial
+(define ambiente-inicial
+  (lambda ()
+    (ambiente-extendido
+     '(@a @b @c @d @e)
+      '(1 2 3 "Hola" "FLP" )
+     (ambiente-vacio))))
+
+
+
+
+
+;Definiendo ambientes
+(define-datatype ambiente ambiente?
+  (ambiente-vacio-ejecutado)
+  (ambiente-extendido-ejecutado
    (syms (list-of symbol?))
    (vec vector?)
-   (env environment?)))
-
+   (ambiente ambiente?)))
 (define scheme-value? (lambda (v) #t))
 
-;empty-env:      -> enviroment
-;función que crea un ambiente vacío
-(define empty-env  
+
+
+
+
+;ambiente vacio:      -> ambiente
+;Función que crea un ambiente vacío
+(define ambiente-vacio 
   (lambda ()
-    (empty-env-record)))       ;llamado al constructor de ambiente vacío 
+    (ambiente-vacio-ejecutado)))
 
 
-;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
-;función que crea un ambiente extendido
-(define extend-env
+
+
+
+
+;ambiente-extendido: <list-of symbols> <list-of numbers> ambiente -> ambiente
+;Función que crea un ambiente extendido
+(define ambiente-extendido
   (lambda (syms vals env)
-    (extended-env-record syms (list->vector vals) env)))
+    (ambiente-extendido-ejecutado syms (list->vector vals) env)))
 
-;extend-env-recursively: <list-of symbols> <list-of <list-of symbols>> <list-of expressions> environment -> environment
-;función que crea un ambiente extendido para procedimientos recursivos
-(define extend-env-recursively
+
+
+
+
+;----------Funcion buscar-variable
+;buscar-variable: <identificador> <ambiente> -> scheme-value
+;Funcion que busca una variable y retorna su valor (en caso de encontrarla) o un error (en caso de no encontrarla)
+(define buscar-variable
+  (lambda (id amb)
+      (deref (buscar-variable-ref id amb))))
+
+(define buscar-variable-ref
+  (lambda (id amb)
+    (cases ambiente amb
+      (ambiente-vacio-ejecutado ()
+                        (eopl:error 'apply-env-ref "No binding for ~s" id))
+      (ambiente-extendido-ejecutado (ids vals amb)
+                           (let ((pos (rib-find-position id ids)))
+                             (if (number? pos)
+                                 (a-ref pos vals)
+                                 (buscar-variable-ref id amb)))))))
+
+(define buscar-variable-const
+  (lambda (elemento lista)
+    (cond
+      [(null? lista) #f]
+      [else
+       (if(eqv? (car lista) elemento) #t
+          (buscar-variable-const elemento (cdr lista)))])))
+
+(define rib-find-position 
+  (lambda (sym los)
+    (list-find-position sym los)))
+
+(define ambiente-extendido-recursivo
   (lambda (proc-names idss bodies old-env)
     (let ((len (length proc-names)))
       (let ((vec (make-vector len)))
-        (let ((env (extended-env-record proc-names vec old-env)))
+        (let ((env (ambiente-extendido-ejecutado proc-names vec old-env)))
           (for-each
             (lambda (pos ids body)
-              (vector-set! vec pos (direct-target (closure ids body env))))
+              (vector-set! vec pos (cerradura ids body env)))
             (iota len) idss bodies)
           env)))))
+
+
 
 ;iota: number -> list
 ;función que retorna una lista de los números desde 0 hasta end
@@ -465,82 +756,7 @@
       (if (>= next end) '()
         (cons next (loop (+ 1 next)))))))
 
-;función que busca un símbolo en un ambiente
-(define apply-env
-  (lambda (env sym)
-    ;(begin
-     ; (display env)
-      ;(display "jajajaj ")
-      (deref (apply-env-ref env sym))))
-    ;)
-(define apply-env-ref
-  (lambda (env sym)
-    (cases environment env
-      (empty-env-record ()
-                        (eopl:error 'apply-env-ref "No binding for ~s" sym))
-      (extended-env-record (syms vals env)
-                           (let ((pos (rib-find-position sym syms)))
-                             (if (number? pos)
-                                 (a-ref pos vals)
-                                 (apply-env-ref env sym)))))))
-
-;*******************************************************************************************
-;Blancos y Referencias
-
-(define expval?
-  (lambda (x)
-    (or (number? x) (procval? x))))
-
-(define ref-to-direct-target?
-  (lambda (x)
-    (and (reference? x)
-         (cases reference x
-           (a-ref (pos vec)
-                  (cases target (vector-ref vec pos)
-                    (direct-target (v) #t)
-                    (indirect-target (v) #f)))))))
-
-(define deref
-  (lambda (ref)
-    (cases target (primitive-deref ref)
-      (direct-target (expval) expval)
-      (indirect-target (ref1)
-                       (cases target (primitive-deref ref1)
-                         (direct-target (expval) expval)
-                         (indirect-target (p)
-                                          (eopl:error 'deref
-                                                      "Illegal reference: ~s" ref1)))))))
-
-(define primitive-deref
-  (lambda (ref)
-    (cases reference ref
-      (a-ref (pos vec)
-             (vector-ref vec pos)))))
-
-(define setref!
-  (lambda (ref expval)
-    (let
-        ((ref (cases target (primitive-deref ref)
-                (direct-target (expval1) ref)
-                (indirect-target (ref1) ref1))))
-      (primitive-setref! ref (direct-target expval)))))
-
-(define primitive-setref!
-  (lambda (ref val)
-    (cases reference ref
-      (a-ref (pos vec)
-             (vector-set! vec pos val)))))
-
-;****************************************************************************************
-;Funciones Auxiliares
-
-; funciones auxiliares para encontrar la posición de un símbolo
-; en la lista de símbolos de un ambiente
-
-(define rib-find-position 
-  (lambda (sym los)
-    (list-find-position sym los)))
-
+;Funciones auxiliares para encontrar la posición de un símbolo en la lista de símbolos de un ambiente
 (define list-find-position
   (lambda (sym los)
     (list-index (lambda (sym1) (eqv? sym1 sym)) los)))
@@ -555,9 +771,83 @@
                 (+ list-index-r 1)
                 #f))))))
 
-;******************************************************************************************
 
+
+
+
+
+;----------Implementando procedimientos
+(define-datatype procVal procVal?
+  (cerradura
+   (lista-ID (list-of symbol?))
+   (exp expresion?)
+   (amb ambiente?)))
+                     
+(define aplicar-procedimiento
+  (lambda (proc args)
+    (cases procVal proc
+      (cerradura (lista-ID exp amb)
+               (evaluar-expresion exp (ambiente-extendido lista-ID args amb))))))
+
+
+
+
+;----------Implementando variables mutables e inmutables
+(define-datatype reference reference?
+  (a-ref (position integer?)
+         (vec vector?)))
+
+(define deref
+  (lambda (ref)
+    (primitive-deref ref)))
+
+(define primitive-deref
+  (lambda (ref)
+    (cases reference ref
+      (a-ref (pos vec)
+             (vector-ref vec pos)))))
+
+(define setref!
+  (lambda (ref val)
+    (primitive-setref! ref val)))
+
+(define primitive-setref!
+  (lambda (ref val)
+    (cases reference ref
+      (a-ref (pos vec)
+             (vector-set! vec pos val)))))
+
+(define
+  variables-constantes '())
+
+
+
+
+
+;----------Implementando Diccionarios
+(define dict?
+  (lambda (expresion)
+  (cond ((null? expresion) #f)
+        ((list? expresion)
+         (let ((len (length expresion)))
+               
+          (and (= len 2) (vector? (car expresion)) 
+               (vector? (cadr expresion)))))
+          (else #f))))
+
+
+; reverse : list -> list
+; usage : (reverse L) : la lista L ordenada de manera contraria
+(define reverse
+  (lambda (L)
+    (if (null? L)
+        '()
+        (append (reverse (cdr L)) (list (car L))))))
+
+
+
+; ;===================================================================================================
+;----------Ejecutando el interpretador
 ;(interpretador)
 
-(just-scan "add1(x)")
-(scan&parse "add1(x)")
+(scan&parse "list (list (1,2,3) , list (2,2,2))")
