@@ -7,7 +7,6 @@
 
 ;Repositorio: https://github.com/Anthony111000/Proyecto-del-curso-FLP-FlowLang-.git
 
-
 ;----------------- Especificacion lexica y sintactica ----------------
 
 ;----------Gramatica BNF
@@ -157,7 +156,9 @@
   (numero
    ("-" digit (arbno digit) "." digit (arbno digit)) number)
   (texto
-   (letter (arbno (or letter digit "-" ":"))) string)
+   (letter (arbno (or letter digit "-" ":"))) string); 
+  (null-keyword 
+   ("null") symbol)
 ))
 
 
@@ -170,7 +171,7 @@
     
     (expresion ("\"" texto "\"") cadena-lit)
 
-
+    (expresion ("null") null-exp)
 
 
 
@@ -386,8 +387,7 @@
 
       (cadena-lit (cadena) cadena)
 
-
-
+      (null-exp () 'null)
 
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DEFINICIONS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
       ;;;;;;;;;; Identificadores ;;;;;;;;;; 
@@ -848,6 +848,125 @@
 
 ; ;===================================================================================================
 ;----------Ejecutando el interpretador
+
 ;(interpretador)
 
-(scan&parse "list (list (1,2,3) , list (2,2,2))")
+; =========== > Ejemplos de Scar&Parse < ==========
+; ; Identificadores
+(scan&parse "@valor")
+(scan&parse "@valor1")
+(scan&parse "@HolaMundo")
+
+
+
+; ; Numeros
+(scan&parse "3")
+(scan&parse "24")
+(scan&parse "125")
+
+(scan&parse "3.14")
+(scan&parse "2.71")
+(scan&parse "45.6")
+
+(scan&parse "-2")
+(scan&parse "-25")
+(scan&parse "-546")
+
+(scan&parse "-2.3")
+(scan&parse "-25.31")
+(scan&parse "-712.334")
+
+
+
+; ; Cadenas
+(scan&parse "\"HolaMundo\"")
+(scan&parse "\"FLP\"")
+(scan&parse "\"Univalle\"")
+
+
+
+; ; Booleanos
+(scan&parse "false")
+(scan&parse "true")
+
+
+
+; ; null
+(scan&parse "null")
+
+
+
+; ; var
+(scan&parse "var (@x = 5){@x}")
+(scan&parse "var (@saludo = \"Holamundo\"){@saludo}")
+(scan&parse "var (@pi = 3.14){@pi}")
+(scan&parse "var (@activo = true){@activo}")
+
+; ; cambios de var (con variables del ambiente inicial)
+(scan&parse "var (@a = 5){@a}")
+(scan&parse "var (@b = \"adios\"){@b}")
+
+
+
+; ; const
+(scan&parse "const (@x = 5){@x}")
+(scan&parse "const (@saludo = \"Holamundo\"){@saludo}")
+(scan&parse "const (@pi = 3.14){@pi}")
+(scan&parse "const (@activo = true){@activo}")
+
+; ; cambios de const (con variables del ambiente inicial, debe lanzar error)
+
+
+
+
+; ; Primitivas Numeros
+;Pruebas enteros positivos
+(scan&parse "+(5,3)")
+(scan&parse "~(10,4)")
+(scan&parse "*(7,6)")
+(scan&parse "/(20,5)")
+(scan&parse "add1(9)")
+(scan&parse "sub1(12)")
+
+;Pruebas flotantes positivos
+(scan&parse "+(3.5,2.1)")
+(scan&parse "~(10.0,0.25)")
+(scan&parse "*(1.2,4.8)")
+(scan&parse "/(9.6,3.2)")
+(scan&parse "add1(5.75)")
+(scan&parse "sub1(8.33)")
+
+;Pruebas enteros negativos
+(scan&parse "+(-4,-6)")
+(scan&parse "~(-10,-3)")
+(scan&parse "*(-7,2)")
+(scan&parse "/(-20,4)")
+(scan&parse "add1(-9)")
+(scan&parse "sub1(-12)")
+
+;Pruebas flotantes negativos
+(scan&parse "+(-3.3,-1.7)")
+(scan&parse "~(-8.5,-2.5)")
+(scan&parse "*(-2.2,3.0)")
+(scan&parse "/(-9.0,1.5)")
+(scan&parse "add1(-4.75)")
+(scan&parse "sub1(-6.99)")
+
+
+
+;Primitivas Cadenas
+(scan&parse "longitud(\"hola\")")
+(scan&parse "concat(\"cadena\", \"hola\")")
+
+
+
+;Expresiones pred boolaneas
+(scan&parse "[10 <  2]")
+(scan&parse "[10 >  2]")
+(scan&parse "[10 <= 2]")
+(scan&parse "[10 >= 2]")
+(scan&parse "[10 == 2]")
+(scan&parse "[10 != 2]")
+(scan&parse "[[8 == 4] and [3 > 2]]")
+(scan&parse "[[8 == 4] or  [3 > 2]]")
+(scan&parse "not [10 >  2]")
