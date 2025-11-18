@@ -7,6 +7,7 @@
 
 ;Repositorio: https://github.com/Anthony111000/Proyecto-del-curso-FLP-FlowLang-.git
 
+
 ;----------------- Especificacion lexica y sintactica ----------------
 
 ;----------Gramatica BNF
@@ -124,7 +125,7 @@
 ; ;	                                     := mod primitiva-mod
 ; ;	                                     := concat primitiva-concat
 ; ;	                                     := append primitiva-append
-; ;	                                     := agregar-a-lista primitiva-agregar-a-lista
+; ;	                                     := crear-lista primitiva-crear-lista
 ; ;
 ; ;             := <primitiva-dict-unaria> ( <expresion> ) primapp-un-dict-exp (prim exp)
 ; ;                <primitiva-dict-unaria> := claves-dict (primitiva-claves-dict)
@@ -155,6 +156,14 @@
    (digit (arbno digit) "." digit (arbno digit)) number)
   (numero
    ("-" digit (arbno digit) "." digit (arbno digit)) number)
+  (complejo
+   (digit "+" digit "i") symbol)
+  (complejo
+   (digit "-" digit "i") symbol)
+  (complejo
+   ("-" digit "+" digit "i") symbol)
+  (complejo
+   ("-" digit "-" digit "i") symbol)
   (texto
    (letter (arbno (or letter digit "-" ":"))) string); 
   (null-keyword 
@@ -163,15 +172,20 @@
 
 
 
+
 ;----------Especificacion sintactica
 (define grammar-flowlang
   '((programa (expresion) un-programa)
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (expresion (numero) numero-lit)
+
+    (expresion (complejo) complejo-lit)
     
     (expresion ("\"" texto "\"") cadena-lit)
 
     (expresion ("null") null-exp)
+
+
 
 
 
@@ -201,7 +215,7 @@
                func-exp(ids cuerpo))
 
     ;;;;;;;;;;;;;;;; Recursivas ;;;;;;;;;;;;;;;;
-    (expresion ("func-rec" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion)  "{" expresion "}") 
+    (expresion ("func-rec" "(" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion) ")"  "{" expresion "}")
                 rec-exp)
 
     ;;;;;;;;;;;;;;;; Invocar ;;;;;;;;;;;;;;;;
@@ -210,7 +224,7 @@
 
 
 
-    
+
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS PREDEFINIDOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;; Listas ;;;;;;;;;;;;;;;;
@@ -235,8 +249,11 @@
                while-exp)
     
     ;;;;;;;;;;;;;;;; For ;;;;;;;;;;;;;;;;
-    (expresion ("for" identificador "=" expresion "to" expresion "do" expresion "done")
-               for-exp)
+    ;;;;;;;;;;;;;;; For unificado ;;;;;;;;;;;;;;;;
+    (expresion ("for" identificador for-operator expresion "do" expresion "done")
+           for-exp)
+           (for-operator ("=" "to") for-num-operator)
+           (for-operator ("in") for-in-operator)
 
     ;;;;;;;;;;;;;;;; Begin ;;;;;;;;;;;;;;;;
     (expresion ("begin" expresion (arbno ";" expresion) "end")
@@ -282,7 +299,6 @@
               (primitiva-sin-arg ("vacio") primitiva-vacio)
 
 
-
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; UNARIAS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (expresion (primitiva-unaria "(" expresion ")" )
                primapp-un-exp)
@@ -297,7 +313,6 @@
               (primitiva-unaria ("dict?") primitiva-is-dict)
 
 
-
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;BINARIAS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (expresion (primitiva-binaria "(" expresion "," expresion ")" )
                primapp-bin-exp)
@@ -308,7 +323,19 @@
               (primitiva-binaria ("mod") primitiva-mod)
               (primitiva-binaria ("concat") primitiva-concat)
               (primitiva-binaria ("append") primitiva-append)
-              (primitiva-binaria ("agregar-a-lista") primitiva-agregar-a-lista)
+              (primitiva-binaria ("crear-lista") primitiva-crear-lista)
+              (primitiva-binaria ("ref-list") primitiva-ref-list)
+              ;;;;;;;;;;;;; operaciones osbre compljos
+              (primitiva-binaria ("complejo+") primitiva-complejo-suma)
+              (primitiva-binaria ("complejo-") primitiva-complejo-resta)
+              (primitiva-binaria ("complejo*") primitiva-complejo-multi)
+              (primitiva-binaria ("complejo/") primitiva-complejo-div)
+
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Ternarias;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (expresion (primitiva-ternaria "(" expresion "," expresion "," expresion ")" )
+              primapp-ter-exp)
+              (primitiva-ternaria ("set-list") primitiva-set-list)
 
 
 
@@ -325,7 +352,7 @@
     ;;;;;;;;;;;;;;;; Expresion primitivas binarias ;;;;;;;;;;;;;;;;
     (expresion (primitiva-dict-bin "("  expresion ","identificador ")" )
                primaapp-bin-dict-exp)
-              (primitiva-dict-bin ("ref-dict") primitiva-bin-dict)
+              (primitiva-dict-bin ("ref-dict") primitiva-ref-dict)
 
 
     ;;;;;;;;;;;;;;;; Expresion primitivas ternarias ;;;;;;;;;;;;;;;;
@@ -364,9 +391,11 @@
       grammar-flowlang)))
 
 
+
 ;-----------------------------------------------------------------------------------------------------
-;-----------------------------------------------------------------------------------------------------;-----------------------------------------------------------------------------------------------------
-;----------Evaluar programa y expresiones
+;-----------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------------------
+;Evaluar programa y expresiones
 ;evaluar-programa : <programa> -> numero
 ;Función que evalúa un programa teniendo en cuenta un ambiente dado (se inicializa dentro del programa)
 (define evaluar-programa
@@ -385,9 +414,15 @@
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DATOS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
       (numero-lit (numero) numero)
 
+      (complejo-lit (complejo-str)
+        (parse-complejo complejo-str))
+
       (cadena-lit (cadena) cadena)
 
       (null-exp () 'null)
+
+
+
 
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; DEFINICIONS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
       ;;;;;;;;;; Identificadores ;;;;;;;;;; 
@@ -464,7 +499,7 @@
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ESTRUCTURAS DE CONTROL ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
       ;;;;;;;;;; IF ;;;;;;;;;;
       (condicional-exp (test-exp true-exp false-exp)
-                       (if (evaluar-expresion test-exp amb)
+                       (if (valor-verdad? (evaluar-expresion test-exp amb))
                            (evaluar-expresion true-exp amb)
                            (evaluar-expresion false-exp amb)
                        ))
@@ -472,20 +507,34 @@
       ;;;;;;;;;; WHILE ;;;;;;;;;;
       (while-exp (bool-exp exp)
                   (let loop ((i 0))
-                   (when (evaluar-expresion bool-exp amb)
+                   (when (valor-verdad? (evaluar-expresion bool-exp amb))
                          (evaluar-expresion exp amb)
                          (loop (+ 1 i)))
                   ))
 
-      ;;;;;;;;;; FOR ;;;;;;;;;;
-      (for-exp (id inicio final exp)
-              (let ((ini (evaluar-expresion inicio amb))
-                    (fin (evaluar-expresion final amb)))
-                   (let loop ((i ini))
-                     (when (<= i fin)
-                           (evaluar-expresion exp (ambiente-extendido (list id) (list i) amb))
-                           (loop (+ 1 i))
-                     ))))
+      ;;;;;;;;;;;;;;; FOR unificado ;;;;;;;;;;;;;;;;
+      (for-exp (id operator range-exp body-exp)
+        (cases for-operator operator
+          (for-num-operator ()
+            (let ((rango (evaluar-expresion range-exp amb)))
+              (if (not (list? rango))
+                  (eopl:error 'evaluar-expresion "Se esperaba una lista de [inicio, fin] en for numérico: ~s" rango)
+                  (let ((ini (car rango))
+                        (fin (cadr rango)))
+                    (let loop ((i ini))
+                      (when (<= i fin)
+                        (evaluar-expresion body-exp (ambiente-extendido (list id) (list i) amb))
+                        (loop (+ 1 i))))))))
+    
+          (for-in-operator ()
+            (let ((lista (evaluar-expresion range-exp amb)))
+              (if (not (list? lista))
+                  (eopl:error 'evaluar-expresion "Se esperaba una lista en for-in: ~s" lista)
+                  (let loop ((elementos lista))
+                    (when (not (null? elementos))
+                      (evaluar-expresion body-exp (ambiente-extendido (list id) (list (car elementos)) amb))
+                      (loop (cdr elementos)))))))))
+
 
       ;;;;;;;;;; BEGIN ;;;;;;;;;;
       (begin-exp (exp exps) 
@@ -508,7 +557,8 @@
       (true-exp () #t)
       
       ;;;;;;;;;; Unarias ;;;;;;;;;;
-      (oper-un-bool (pred) (not (evaluar-expresion pred amb)))
+      (oper-un-bool (pred) 
+        (not (valor-verdad? (evaluar-expresion pred amb))))
 
       ;;;;;;;;;; primitivas booleanas ;;;;;;;;;;
       (pred-prim-exp (op1 pred-prim op2)
@@ -536,6 +586,12 @@
                             (aplicar-primitiva-binaria primitiva-binaria args)
                         ))
 
+      ;;;;;;;;;;;;;;;;; ternarias ;;;;;;;;;;;
+      (primapp-ter-exp (primitiva-ternaria op1 op2 op3)
+                      (let ((args (evaluar-operandos (list op1 op2 op3) amb)))
+                            (aplicar-primitiva-ternaria primitiva-ternaria args)
+                      ))
+
 
 
 
@@ -548,8 +604,8 @@
 
       ;;;;;; binarias ;;;;;;
       (primaapp-bin-dict-exp (prim-bin-dict dict id)
-                               (let((arg1 (evaluar-operando  dict amb)))
-                                   (vector-ref (cadr arg1) (list-find-position id (vector->list (car arg1))))
+                               (let((arg1 (evaluar-operando dict amb)))
+                                    (aplicar-primitiva-binaria-dict prim-bin-dict arg1 id)
                                ))
 
       ;;;;;; ternarias ;;;;;;
@@ -561,6 +617,7 @@
 )))
 
 
+;-----------------------------------------------------------------------------------------------------
 
 ;Funciones auxiliares para aplicar evaluar-expresion a cada elemento de una lista de operandos (expresiones)
 (define evaluar-operandos
@@ -572,10 +629,22 @@
   (lambda (rand env)
     (evaluar-expresion rand env)))
 
+;-----------------------------------------------------------------------------------------------------
+; Función auxiliar para determinar si un valor es "truthy" o "falsy"
+(define valor-verdad?
+  (lambda (valor)
+    (cond
+      ; Valores "falsy" según FlowLang:
+      ((eqv? valor 'null) #f)        ; null es falso
+      ((eqv? valor #f) #f)           ; false es falso
+      ((and (number? valor) (zero? valor)) #f)  ; 0 es falso
+      ((and (string? valor) (zero? (string-length valor))) #f)  ; cadena vacía es falsa
+      ; Cualquier otro valor es "truthy"
+      ((and (list? valor) (null? valor)) #f)    ; lista vacía es falsa
+      (else #t))))
 
 
-
-
+;-----------------------------------------------------------------------------------------------------
 ;aplicar-primitiva-unaria: <primitiva-unaria> <list-of-expresion> -> numero
 ;Obtiene el resultado de aplicar la primitiva unaria al operando
 (define aplicar-primitiva-unaria
@@ -591,11 +660,119 @@
       (primitiva-print     () (begin (display arg) (newline)))
       (primitiva-is-dict    ()  (dict?  arg))
     )))
+;-----------------------------------------------------------------------------------------------------
 
 
+;-----------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------------------
+; Funciones para números complejos
+
+; Parsear string de complejo a lista (real imag)
+; Versión final robusta de parse-complejo
+(define parse-complejo
+  (lambda (complejo-str)
+    (let ((str (symbol->string complejo-str)))
+      (let ((len (string-length str)))
+        ; Verificar formato básico
+        (if (or (< len 3) (not (char=? (string-ref str (- len 1)) #\i)))
+            (eopl:error 'parse-complejo "Formato de número complejo inválido: ~s" complejo-str)
+            (let ((without-i (substring str 0 (- len 1))))
+              ; Manejar casos especiales primero
+              (cond
+                ; Caso: solo parte imaginaria (ej: "3i" se escribiría como "0+3i" en nuestro scanner)
+                ((string-contains-char? without-i #\+)
+                 (let ((parts (string-split without-i #\+)))
+                   (if (= (length parts) 2)
+                       (list (string->number (car parts)) (string->number (cadr parts)))
+                       (eopl:error 'parse-complejo "Formato de complejo inválido: ~s" complejo-str))))
+                ((string-contains-char? without-i #\-)
+                 (let ((parts (string-split without-i #\-)))
+                   (cond
+                     ((= (length parts) 2)
+                      (list (string->number (car parts)) (- (string->number (cadr parts)))))
+                     ((= (length parts) 3) ; caso -a-bi
+                      (list (- (string->number (cadr parts))) (- (string->number (caddr parts)))))
+                     (else
+                      (eopl:error 'parse-complejo "Formato de complejo inválido: ~s" complejo-str))))
+                 (eopl:error 'parse-complejo "Formato de complejo inválido: ~s" complejo-str)))))))))
+
+; Verificar si es un número complejo
+(define complejo?
+  (lambda (x)
+    (and (list? x) 
+         (= (length x) 2) 
+         (number? (car x)) 
+         (number? (cadr x)))))
+
+; Operaciones con números complejos
+(define suma-complejos
+  (lambda (c1 c2)
+    (if (and (complejo? c1) (complejo? c2))
+        (list (+ (car c1) (car c2))
+              (+ (cadr c1) (cadr c2)))
+        (eopl:error 'suma-complejos "Argumentos no son complejos: ~s y ~s" c1 c2))))
+
+(define resta-complejos
+  (lambda (c1 c2)
+    (if (and (complejo? c1) (complejo? c2))
+        (list (- (car c1) (car c2))
+              (- (cadr c1) (cadr c2)))
+        (eopl:error 'resta-complejos "Argumentos no son complejos: ~s y ~s" c1 c2))))
+
+(define multiplica-complejos
+  (lambda (c1 c2)
+    (if (and (complejo? c1) (complejo? c2))
+        (let ((a (car c1))
+              (b (cadr c1))
+              (c (car c2))
+              (d (cadr c2)))
+          (list (- (* a c) (* b d))
+                (+ (* a d) (* b c))))
+        (eopl:error 'multiplica-complejos "Argumentos no son complejos: ~s y ~s" c1 c2))))
+
+(define divide-complejos
+  (lambda (c1 c2)
+    (if (and (complejo? c1) (complejo? c2))
+        (let ((a (car c1))
+              (b (cadr c1))
+              (c (car c2))
+              (d (cadr c2)))
+          (let ((denominador (+ (* c c) (* d d))))
+            (if (zero? denominador)
+                (eopl:error 'divide-complejos "División por cero en complejos")
+                (list (/ (+ (* a c) (* b d)) denominador)
+                      (/ (- (* b c) (* a d)) denominador)))))
+        (eopl:error 'divide-complejos "Argumentos no son complejos: ~s y ~s" c1 c2))))
 
 
+; Funciones auxiliares para manejar strings
+(define string-split
+  (lambda (str char)
+    (let loop ((chars (string->list str))
+               (current '())
+               (result '()))
+      (cond
+        ((null? chars)
+         (reverse (cons (list->string (reverse current)) result)))
+        ((char=? (car chars) char)
+         (loop (cdr chars) 
+               '() 
+               (cons (list->string (reverse current)) result)))
+        (else
+         (loop (cdr chars) 
+               (cons (car chars) current) 
+               result))))))
 
+(define string-contains-char?
+  (lambda (str ch)
+    (let loop ((chars (string->list str)))
+      (cond
+        ((null? chars) #f)
+        ((char=? (car chars) ch) #t)
+        (else (loop (cdr chars)))))))
+;-----------------------------------------------------------------------------------------------------
+
+;-----------------------------------------------------------------------------------------------------
 ;aplicar-primitiva-binaria: <primitiva-binaria> <list-of-expresion> -> numero
 ;Obtiene el resultado de aplicar la primitiva binaria a los operandos
 (define aplicar-primitiva-binaria
@@ -605,26 +782,153 @@
       (primitiva-resta  () (- (car args) (cadr args)))
       (primitiva-div    () (/ (car args) (cadr args)))
       (primitiva-multi  () (* (car args) (cadr args)))
-      (primitiva-mod    () (modulo (car args) (cadr args)))
+      (primitiva-mod    () 
+          (let ((dividendo (car args))
+            (divisor (cadr args)))
+          (if (zero? divisor)
+            (eopl:error 'primitiva-mod "División por cero")
+            (- dividendo (* divisor (truncate (/ dividendo divisor)))))))
       (primitiva-concat () (string-append (car args) (cadr args)))
       (primitiva-append () (append (car args) (cadr args)))
-      (primitiva-agregar-a-lista () (append (car args) (list(cadr args))))
+      (primitiva-crear-lista () (append (car args) (list(cadr args))))
+      (primitiva-ref-list ()
+        (let ((lst (car args))
+              (index (cadr args)))
+          ; Verificar que el índice sea un número entero
+          (if (not (integer? index))
+              (eopl:error 'aplicar-primitiva-binaria "El índice debe ser un número entero: ~s" index)
+              
+              ; Llamar a la función auxiliar para buscar en la lista
+              (ref-list-aux lst index 0)
+          )))
+
+      ; Operaciones específicas para complejos
+      (primitiva-complejo-suma () 
+        (let ((arg1 (car args)) (arg2 (cadr args)))
+          (if (and (complejo? arg1) (complejo? arg2))
+              (suma-complejos arg1 arg2)
+              (eopl:error 'primitiva-complejo-suma "Argumentos deben ser complejos: ~s y ~s" arg1 arg2))))
+      
+      (primitiva-complejo-resta () 
+        (let ((arg1 (car args)) (arg2 (cadr args)))
+          (if (and (complejo? arg1) (complejo? arg2))
+              (resta-complejos arg1 arg2)
+              (eopl:error 'primitiva-complejo-resta "Argumentos deben ser complejos: ~s y ~s" arg1 arg2))))
+      
+      (primitiva-complejo-multi () 
+        (let ((arg1 (car args)) (arg2 (cadr args)))
+          (if (and (complejo? arg1) (complejo? arg2))
+              (multiplica-complejos arg1 arg2)
+              (eopl:error 'primitiva-complejo-multi "Argumentos deben ser complejos: ~s y ~s" arg1 arg2))))
+      
+      (primitiva-complejo-div () 
+        (let ((arg1 (car args)) (arg2 (cadr args)))
+          (if (and (complejo? arg1) (complejo? arg2))
+              (divide-complejos arg1 arg2)
+              (eopl:error 'primitiva-complejo-div "Argumentos deben ser complejos: ~s y ~s" arg1 arg2))))
 )))
 
 
+; Función recursiva para buscar elemento en lista por índice
+(define ref-list-aux
+  (lambda (lst index current)
+    (cond
+      ; Caso 1: Lista vacía - índice inválido, retornar null
+      ((null? lst) 'null)
+      
+      ; Caso 2: Encontró el índice - retornar el elemento
+      ((= current index) (car lst))
+      
+      ; Caso 3: Seguir buscando recursivamente
+      (else (ref-list-aux (cdr lst) index (+ current 1))))))
+
+;-----------------------------------------------------------------------------------------------------
 
 
+;aplicar-primitiva-ternaria: <primitiva-ternaria> <list-of-expresion> -> valor
+(define aplicar-primitiva-ternaria
+  (lambda (prim args)
+    (cases primitiva-ternaria prim
+      (primitiva-set-list ()
+        (let ((lst (car args))
+              (index (cadr args))
+              (valor (caddr args)))
+          ; Verificar que el índice sea un número entero
+          (if (not (integer? index))
+              (eopl:error 'aplicar-primitiva-ternaria "El índice debe ser un número entero: ~s" index)
+              ; Llamar a la función auxiliar para modificar la lista
+              (set-list-aux lst index valor 0)
+          )))
+      )))
 
+; Función recursiva para modificar elemento en lista por índice
+(define set-list-aux
+  (lambda (lst index valor current)
+    (cond
+      ; Caso 1: Lista vacía - índice inválido
+      ((null? lst)
+       (eopl:error 'set-list-aux "Índice ~s fuera de rango para la lista: ~s" index lst))
+      
+      ; Caso 2: Encontró el índice - reemplazar el elemento
+      ((= current index)
+       (cons valor (cdr lst)))
+      
+      ; Caso 3: Seguir buscando recursivamente
+      (else 
+       (cons (car lst) (set-list-aux (cdr lst) index valor (+ current 1)))))))
+
+
+;-----------------------------------------------------------------------------------------------------
 ;aplicar-primitiva-unaria-dict: <primitiva-unaria-dict> <list-of-expresion> -> vector
 (define aplicar-primitiva-unaria-dict
-  (lambda (prim args)
+  (lambda (prim arg)
     (cases primitiva-dict-unaria prim
-      (primitiva-claves-dict   () (1))
-      (primitiva-valores-dict  () (2))
-)))
+      (primitiva-claves-dict () 
+        (if (dict? arg)
+            (vector->list (car arg))  ; Convertir vector de claves a lista
+            (eopl:error 'aplicar-primitiva-unaria-dict "Se esperaba un diccionario: ~s" arg)))
+      
+      (primitiva-valores-dict () 
+        (if (dict? arg)
+            (vector->list (cadr arg))  ; Convertir vector de valores a lista
+            (eopl:error 'aplicar-primitiva-unaria-dict "Se esperaba un diccionario: ~s" arg))))))
 
 
 
+(define aplicar-primitiva-binaria-dict
+  (lambda (prim dict clave)
+    (cases primitiva-dict-bin prim
+      (primitiva-ref-dict () 
+        ; Verificar que el argumento sea un diccionario válido
+        (if (not (dict? dict))
+            (eopl:error 'aplicar-primitiva-binaria-dict "Se esperaba un diccionario: ~s" dict)
+            ; Buscar la clave en el diccionario
+            (ref-dict-aux dict clave)
+        )
+      )
+   )))
+ 
+ 
+
+; Función para buscar una clave en un diccionario
+(define ref-dict-aux
+  (lambda (dict clave)
+    (let ((claves-vec (car dict))   ; Vector de claves
+          (valores-vec (cadr dict))) ; Vector de valores
+      
+      ; Convertir vector de claves a lista para buscar
+      (let ((claves-lst (vector->list claves-vec))
+            (valores-lst (vector->list valores-vec)))
+        
+        ; Buscar la posición de la clave
+        (let ((pos (list-find-position clave claves-lst)))
+          (if (number? pos)
+              ; Si encontramos la clave, devolver el valor correspondiente
+              (list-ref valores-lst pos)
+              ; Si no encontramos la clave, devolver null
+              'null
+          )))
+    )))
 
 
 ;aplicar-primitiva-ternaria-dict: <primitiva-dict-ter> <list-of-expresion> -> vector
@@ -635,11 +939,12 @@
       (primitiva-crear-dict () (define v1 (list->vector (append  (vector->list (caar args)) (list (cadr args))))) (define v2 (list->vector (append  (vector->list (cadar args)) (list (caddr args)))))(list v1 v2))
       (primitiva-set-dict ()(vector-set! (cadar args)(list-find-position (cadr args) (vector->list (caar args)))(caddr args)))
       )))
+;-----------------------------------------------------------------------------------------------------
 
 
 
 
-
+;-----------------------------------------------------------------------------------------------------
 ;aplicar predicado booleano
 (define aplicar-pred-prim
   (lambda (prim args)
@@ -653,11 +958,13 @@
       (pred-and          () (and (car args) (cadr args)))
       (pred-or           () (or (car args) (cadr args)))
       )))
+;-----------------------------------------------------------------------------------------------------
 
 
 
-
-;-----------------------------------------------------------------------------------------------------;-----------------------------------------------------------------------------------------------------;-----------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------------------
 ;----------Definiendo ambientes y un ambiente inicial
 ;Ambiente inicial
 (define ambiente-inicial
@@ -689,8 +996,6 @@
 (define ambiente-vacio 
   (lambda ()
     (ambiente-vacio-ejecutado)))
-
-
 
 
 
@@ -848,125 +1153,227 @@
 
 ; ;===================================================================================================
 ;----------Ejecutando el interpretador
-
-;(interpretador)
-
-; =========== > Ejemplos de Scar&Parse < ==========
-; ; Identificadores
-(scan&parse "@valor")
-(scan&parse "@valor1")
-(scan&parse "@HolaMundo")
-
-
-
-; ; Numeros
-(scan&parse "3")
-(scan&parse "24")
-(scan&parse "125")
-
-(scan&parse "3.14")
-(scan&parse "2.71")
-(scan&parse "45.6")
-
-(scan&parse "-2")
-(scan&parse "-25")
-(scan&parse "-546")
-
-(scan&parse "-2.3")
-(scan&parse "-25.31")
-(scan&parse "-712.334")
+(define pretty-print-value
+  (lambda (val)
+    (cond
+      ((string? val) val)
+      ((eqv? val 'void) #f)
+      ((number? val) 
+       (if (and (inexact? val) (integer? val))
+           (inexact->exact val)  ;; Convertir 1.0 a 1 para impresión más limpia
+           val))
+      ((and (pair? val) (eq? (car val) 'tuple))
+       (cons 'tuple (map pretty-print-value (cdr val))))
+      ((list? val) (cons 'list (map pretty-print-value val)))
+      ((and (list? val) (pair? (car val)) (not (eq? (caar val) 'tuple)) (not (eq? (caar val) 'list)))
+       (cons 'dict (map (lambda (p) (cons (car p) (pretty-print-value (cdr p)))) val)))
+      (else val))))
 
 
+(define all-test
+  (list
+  ; ; Numeros
+  "3"
+  "24"
+  "125"
 
-; ; Cadenas
-(scan&parse "\"HolaMundo\"")
-(scan&parse "\"FLP\"")
-(scan&parse "\"Univalle\"")
+  "3.14"
+  "2.71"
+  "45.6"
 
+  "-2"
+  "-25"
+  "-546"
 
+  "-2.3"
+  "-25.31"
+  "-712.334"
 
-; ; Booleanos
-(scan&parse "false")
-(scan&parse "true")
+  ; ; cadenas
+  "\"HolaMundo\""
+  "\"FLP\""
+  "\"Univalle\""
 
+  ; ; booleanos
+  "false"
+  "true"
 
-
-; ; null
-(scan&parse "null")
-
-
-
-; ; var
-(scan&parse "var (@x = 5){@x}")
-(scan&parse "var (@saludo = \"Holamundo\"){@saludo}")
-(scan&parse "var (@pi = 3.14){@pi}")
-(scan&parse "var (@activo = true){@activo}")
-
-; ; cambios de var (con variables del ambiente inicial)
-(scan&parse "var (@a = 5){@a}")
-(scan&parse "var (@b = \"adios\"){@b}")
+  ; ; false, 0 y null son falsos
+  "if false then +(1,2) else +(4,5) done"
+  "if 0 then +(1,2) else +(4,5) done"
+  "if null then +(1,2) else +(4,5) done"
 
 
 
-; ; const
-(scan&parse "const (@x = 5){@x}")
-(scan&parse "const (@saludo = \"Holamundo\"){@saludo}")
-(scan&parse "const (@pi = 3.14){@pi}")
-(scan&parse "const (@activo = true){@activo}")
-
-; ; cambios de const (con variables del ambiente inicial, debe lanzar error)
+  ; ; listas
+  "list ()"
+  "list (1,2,3)"
+  "list (list (1,2,3) , list (2,2,2))"
+  "list (list (\"ola\",\"adios\",\"hi\") , list (-2,2.4,22))"
 
 
 
-
-; ; Primitivas Numeros
-;Pruebas enteros positivos
-(scan&parse "+(5,3)")
-(scan&parse "~(10,4)")
-(scan&parse "*(7,6)")
-(scan&parse "/(20,5)")
-(scan&parse "add1(9)")
-(scan&parse "sub1(12)")
-
-;Pruebas flotantes positivos
-(scan&parse "+(3.5,2.1)")
-(scan&parse "~(10.0,0.25)")
-(scan&parse "*(1.2,4.8)")
-(scan&parse "/(9.6,3.2)")
-(scan&parse "add1(5.75)")
-(scan&parse "sub1(8.33)")
-
-;Pruebas enteros negativos
-(scan&parse "+(-4,-6)")
-(scan&parse "~(-10,-3)")
-(scan&parse "*(-7,2)")
-(scan&parse "/(-20,4)")
-(scan&parse "add1(-9)")
-(scan&parse "sub1(-12)")
-
-;Pruebas flotantes negativos
-(scan&parse "+(-3.3,-1.7)")
-(scan&parse "~(-8.5,-2.5)")
-(scan&parse "*(-2.2,3.0)")
-(scan&parse "/(-9.0,1.5)")
-(scan&parse "add1(-4.75)")
-(scan&parse "sub1(-6.99)")
+  ; ; diccionarios
+  "dict (@a: 1, @b: 2, @c: 3, @d: 4, @e: 5)"
 
 
 
-;Primitivas Cadenas
-(scan&parse "longitud(\"hola\")")
-(scan&parse "concat(\"cadena\", \"hola\")")
+  ; ; primitivas booleas
+  "[10 <  2]"
+  "[10 >  2]"
+  "[10 <= 2]"
+  "[10 >= 2]"
+  "[10 == 2]"
+  "[10 != 2]"
+  "[[8 == 4] and [3 > 2]]"
+  "[[8 == 4] or  [3 > 2]]"
+  "not [10 >  2]"
 
 
 
-;Expresiones pred boolaneas
-(scan&parse "[10 <  2]")
-(scan&parse "[10 >  2]")
-(scan&parse "[10 <= 2]")
-(scan&parse "[10 >= 2]")
-(scan&parse "[10 == 2]")
-(scan&parse "[10 != 2]")
-(scan&parse "[[8 == 4] and [3 > 2]]")
-(scan&parse "[[8 == 4] or  [3 > 2]]")
-(scan&parse "not [10 >  2]")
+  ; ; primitivas numeros reales
+  ;Pruebas enteros positivos
+  "+(5,3)"
+  "~(10,4)"
+  "*(7,6)"
+  "/(20,5)"
+  "mod(20,3)"
+  "add1(9)"
+  "sub1(12)"
+  ;Pruebas flotantes positivos
+  "+(3.5,2.1)"
+  "~(10.0,0.25)"
+  "*(1.2,4.8)"
+  "/(9.6,3.2)"
+  "mod(20.4,3.2)"
+  "add1(5.75)"
+  "sub1(8.33)"
+  ;Pruebas enteros negativos
+  "+(-4,-6)"
+  "~(-10,-3)"
+  "*(-7,2)"
+  "/(-20,4)"
+  "mod(-43,5)"
+  "add1(-9)"
+  "sub1(-12)"
+  ;Pruebas flotantes negativos
+  "+(-3.3,-1.7)"
+  "~(-8.5,-2.5)"
+  "*(-2.2,3.0)"
+  "/(-9.0,1.5)"
+  "mod(-43.89,5.2)"
+  "add1(-4.75)"
+  "sub1(-6.99)"
+
+
+  ; ; primitivas complejos
+
+
+
+  ; ; primitivas cadenas
+  "longitud(\"hola\")"
+  "concat(\"cadena\", \"hola\")"
+
+
+
+  ; ; primitivas listas
+  "vacio"
+  "vacio?(vacio)"
+  "vacio?(list(1,2,3))"
+
+  "crear-lista(list(4,5,6), 5)"
+  "crear-lista(list(7,8,9), list (5))"
+
+  "lista?(list (1,2,3,4,5))"
+  "lista?(2)"
+
+  "cabeza(list (1,2,3,4,5))"
+
+  "cola(list (1,2,3,4,5))"
+
+  "append(list (1,2,3,4,5) , list(6,7,8))"
+
+  "ref-list(list(1,2,3), 1)"
+
+  "set-list(list(1, 2, 3), 1, 99)"
+
+
+
+  ; ; primitivas diccionarios
+  "dict?(dict (@a: 1, @b: 2, @c: 3, @d: 4, @e: 5))"
+  "dict?(list (1,2,3))"
+
+  "crear-dict(dict (@a: 1, @b: 2, @b: 3), @c, 4 )"
+
+  "ref-dict(dict (@a: 1, @b: 2, @b: 3), @b )"
+  "ref-dict(dict (@a: 1, @b: 2, @b: 3), @h )"
+
+  "set-dict(dict (@a: 1, @b: 2, @b: 3), @b, 4 )"
+
+  "claves-dict(dict (@a: 1, @b: 2, @c: 3, @d: 4, @e: 5))"
+
+  "valores-dict(dict (@a: 1, @b: 2, @c: 3, @d: 4, @e: 5))"
+
+
+
+  ; ; estuctura de control
+  ;If
+  "if [10 > 2] then *(20, 2) else /(20, 2)  done"
+  "if [10 == 2] then *(20, 2) else /(20, 2)  done"
+  ;Swicth
+
+
+
+  ; ; Iteracion
+  ;for
+  "for @i =1 to 10 do print(@i)done"
+  ;While
+  "var (@i = 1){while [@i <= 5] do begin print(@i);set @i = add1(@i) end done}"
+
+
+
+
+  ; ; funciones
+  "func-rec
+    @fact(@n) = if [@n != 0]
+        then *(@n , evaluar @fact(sub1(@n)) finEval)
+        else 1 done
+    {evaluar @fact(10) finEval}"
+            
+
+
+  ; ; recursivas
+  "var(
+      @sumar = func(@x, @y) {
+      +(@x, @y) }
+  ){
+    evaluar @sumar(2,3) finEval
+  }" 
+
+
+
+  ; ; Begin
+  "begin
+    @a
+  end"
+  ))
+
+(define run-all-tests
+  (lambda ()
+    (display "=== TODAS LAS PRUEBAS ===") (newline) (newline)
+    (for-each
+     (lambda (test)
+       (display "Ejecutando: ") (display test) (newline)
+       (display "Resultado:") (newline)
+       (let* ((pgm (scan&parse test))
+              (result (evaluar-programa pgm)))
+         (display "Valor retornado: ")
+         (display (pretty-print-value result))
+         (newline)
+         (display "---") (newline) (newline)))
+     all-test)))
+
+;(define resultados (run-all-tests))
+
+
+(interpretador)
