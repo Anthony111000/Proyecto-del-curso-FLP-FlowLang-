@@ -8,6 +8,8 @@
 ;Repositorio: https://github.com/Anthony111000/Proyecto-del-curso-FLP-FlowLang-.git
 
 
+#lang eopl
+
 ;----------------- Especificacion lexica y sintactica ----------------
 
 ;----------Gramatica BNF
